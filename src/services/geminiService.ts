@@ -17,6 +17,7 @@ export const getLiveSession = (
     const ws = new WebSocket(`${protocol}//${location.host}/api/live`);
 
     let resolved = false;
+    let lastResumptionHandle: string | undefined;
 
     ws.onopen = () => {
       ws.send(
@@ -58,16 +59,28 @@ export const getLiveSession = (
               }
               ws.close();
             },
+            getResumptionHandle: () => lastResumptionHandle,
           });
         } else if (msg.type === "message") {
           callbacks.onmessage?.(msg.data);
+        } else if (msg.type === "goAway") {
+          // Server is about to disconnect — pass resumption handle for reconnect
+          lastResumptionHandle = msg.resumptionHandle;
+          callbacks.ongoaway?.({
+            timeLeft: msg.timeLeft,
+            resumptionHandle: msg.resumptionHandle,
+          });
         } else if (msg.type === "error") {
+          lastResumptionHandle =
+            msg.resumptionHandle || lastResumptionHandle;
           if (!resolved) {
             resolved = true;
             reject(new Error(msg.error));
           }
           callbacks.onerror?.(new Error(msg.error));
         } else if (msg.type === "close") {
+          lastResumptionHandle =
+            msg.resumptionHandle || lastResumptionHandle;
           callbacks.onclose?.();
         }
       } catch (e) {

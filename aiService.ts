@@ -25,8 +25,10 @@ const aiConfig: any = useVertexAI
 const ai = new GoogleGenAI(aiConfig);
 
 // Model names — configurable via env vars
+// NOTE: gemini-2.0-flash-live-001 was shut down Dec 2025.
+// For Vertex AI use gemini-2.0-flash-live-preview-04-09 (stable) or gemini-live-2.5-flash-preview (latest).
 const MODEL_LIVE =
-  process.env.MODEL_LIVE || "gemini-2.0-flash-live-001";
+  process.env.MODEL_LIVE || "gemini-2.0-flash-live-preview-04-09";
 const MODEL_TEXT = process.env.MODEL_TEXT || "gemini-2.0-flash";
 const MODEL_TTS =
   process.env.MODEL_TTS || "gemini-2.5-flash-preview-tts";
@@ -183,26 +185,40 @@ export const createLiveSession = (
     partyA: "Party A",
     partyB: "Party B",
   },
+  resumptionHandle?: string,
 ) => {
+  const config: any = {
+    responseModalities: [Modality.AUDIO],
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: { voiceName: mediatorProfile.voice },
+      },
+    },
+    tools: [{ functionDeclarations: [updateMediationStateDeclaration] }],
+    systemInstruction: buildSystemInstruction(
+      mediatorProfile,
+      partyNames,
+      context,
+    ),
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
+    // Enable context window compression to extend session duration
+    contextWindowCompression: { slidingWindow: {} },
+  };
+
+  // Enable session resumption for reconnect resilience
+  if (resumptionHandle) {
+    config.sessionResumption = { handle: resumptionHandle };
+  } else {
+    config.sessionResumption = {};
+  }
+
+  console.log(`[Live] Connecting to model: ${MODEL_LIVE} (Vertex: ${useVertexAI})`);
+
   return ai.live.connect({
     model: MODEL_LIVE,
     callbacks,
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: mediatorProfile.voice },
-        },
-      },
-      tools: [{ functionDeclarations: [updateMediationStateDeclaration] }],
-      systemInstruction: buildSystemInstruction(
-        mediatorProfile,
-        partyNames,
-        context,
-      ),
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-    },
+    config,
   });
 };
 
