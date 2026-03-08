@@ -4,8 +4,9 @@ import {
   MessageSquare,
   Mic,
   Volume2,
-  Zap,
+  BookOpen,
   ShieldAlert,
+  Info,
 } from "lucide-react";
 
 export default function Layout() {
@@ -13,11 +14,12 @@ export default function Layout() {
 
   const navItems = [
     { path: "/", icon: ShieldAlert, label: "Overview" },
-    { path: "/workspace", icon: Activity, label: "Live Workspace" },
+    { path: "/workspace", icon: Activity, label: "Mediation Workspace" },
+    { path: "/library", icon: BookOpen, label: "Resolution Library" },
+    { path: "/how-it-works", icon: Info, label: "How It Works" },
     { path: "/chat", icon: MessageSquare, label: "Advisor Chat" },
     { path: "/transcribe", icon: Mic, label: "Transcription" },
     { path: "/tts", icon: Volume2, label: "Speech Engine" },
-    { path: "/fast", icon: Zap, label: "Fast Analysis" },
   ];
 
   return (
@@ -30,7 +32,7 @@ export default function Layout() {
             CONCORDIA
           </h1>
           <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono uppercase tracking-wider">
-            Conflict Context Layer
+            by TACITUS
           </p>
         </div>
 
@@ -65,7 +67,7 @@ export default function Layout() {
               ONLINE
             </span>
           </div>
-          <div>TACITUS Core Engine v1.0</div>
+          <div>TACITUS Mediation Engine v2.0</div>
         </div>
       </aside>
 
