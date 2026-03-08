@@ -11,7 +11,7 @@
   --color-border: #262626;
   --color-text: #f5f5f5;
   --color-text-muted: #a3a3a3;
-  --color-accent: #3b82f6; /* A calm blue for professional feel */
+  --color-accent: #3b82f6;
   --color-accent-hover: #2563eb;
   --color-danger: #ef4444;
 }
@@ -24,17 +24,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for a technical feel */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-bg);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
@@ -58,4 +57,13 @@ body {
   font-weight: 600;
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.5rem;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.15); }
+}
+
+.live-indicator {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

@@ -5,7 +5,7 @@ import {
   Mic,
   Volume2,
   BookOpen,
-  ShieldAlert,
+  Shield,
   Info,
 } from "lucide-react";
 
@@ -13,8 +13,8 @@ export default function Layout() {
   const location = useLocation();
 
   const navItems = [
-    { path: "/", icon: ShieldAlert, label: "Overview" },
-    { path: "/workspace", icon: Activity, label: "Mediation Workspace" },
+    { path: "/", icon: Shield, label: "Overview" },
+    { path: "/workspace", icon: Activity, label: "Live Workspace" },
     { path: "/library", icon: BookOpen, label: "Resolution Library" },
     { path: "/how-it-works", icon: Info, label: "How It Works" },
     { path: "/chat", icon: MessageSquare, label: "Advisor Chat" },
@@ -28,7 +28,7 @@ export default function Layout() {
       <aside className="w-64 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col">
         <div className="p-6 border-b border-[var(--color-border)]">
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-[var(--color-accent)]" />
+            <Shield className="w-6 h-6 text-[var(--color-accent)]" />
             CONCORDIA
           </h1>
           <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono uppercase tracking-wider">
@@ -67,7 +67,7 @@ export default function Layout() {
               ONLINE
             </span>
           </div>
-          <div>TACITUS Mediation Engine v2.0</div>
+          <div>CONCORDIA Mediation Engine v2.0</div>
         </div>
       </aside>
 

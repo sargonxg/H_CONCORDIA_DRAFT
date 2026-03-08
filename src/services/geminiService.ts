@@ -4,14 +4,32 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const updateMediationStateDeclaration = {
   name: "updateMediationState",
-  description: "Update the UI state of the mediation process based on the conversation progress. Call this frequently to keep the UI in sync.",
+  description:
+    "Update the UI state of the mediation process based on the conversation progress. Call this BEFORE every response to keep the UI synchronized with your reasoning.",
   parameters: {
     type: Type.OBJECT,
     properties: {
-      phase: { type: Type.STRING, description: "Current phase: 'Discovery', 'Exploration', 'Resolution', 'Agreement'" },
-      targetActor: { type: Type.STRING, description: "The name of the actor who should speak next, or 'All'" },
-      currentAction: { type: Type.STRING, description: "A short sentence explaining what you are doing right now (e.g., 'Asking Actor 1 to clarify the timeline', 'Analyzing Actor 2\\'s constraints')" },
-      missingItems: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of topics or facts still missing from the case" },
+      phase: {
+        type: Type.STRING,
+        description:
+          "Current phase: 'Opening', 'Discovery', 'Exploration', 'Negotiation', 'Resolution', 'Agreement'",
+      },
+      targetActor: {
+        type: Type.STRING,
+        description:
+          "The name of the party who should speak next, or 'Both' for joint address",
+      },
+      currentAction: {
+        type: Type.STRING,
+        description:
+          "A short sentence explaining your mediator reasoning (e.g., 'Validating Party A emotional state before probing deeper', 'Checking for hidden interests behind Party B position')",
+      },
+      missingItems: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          "List of facts, perspectives, or emotional dimensions still missing from the case",
+      },
       structuredItems: {
         type: Type.ARRAY,
         items: {
@@ -19,44 +37,166 @@ const updateMediationStateDeclaration = {
           properties: {
             topic: { type: Type.STRING },
             summary: { type: Type.STRING },
-            actor: { type: Type.STRING }
-          }
-        }
-      }
+            actor: { type: Type.STRING },
+          },
+        },
+        description: "Established facts, agreements, or key revelations",
+      },
+      partyProfiles: {
+        type: Type.OBJECT,
+        properties: {
+          partyA: {
+            type: Type.OBJECT,
+            properties: {
+              emotionalState: {
+                type: Type.STRING,
+                description:
+                  "Primary emotional state: 'Calm', 'Anxious', 'Defensive', 'Angry', 'Frustrated', 'Hopeful', 'Resigned', 'Guarded', 'Open', 'Distressed'",
+              },
+              engagementLevel: {
+                type: Type.STRING,
+                description: "'High', 'Medium', 'Low', 'Disengaged'",
+              },
+              communicationStyle: {
+                type: Type.STRING,
+                description:
+                  "'Assertive', 'Passive', 'Aggressive', 'Analytical', 'Collaborative', 'Avoidant', 'Accommodating'",
+              },
+              cooperativeness: {
+                type: Type.NUMBER,
+                description:
+                  "0 to 100 scale of willingness to cooperate and find common ground",
+              },
+              defensiveness: {
+                type: Type.NUMBER,
+                description:
+                  "0 to 100 scale of how defensive the party is being",
+              },
+              keyNeeds: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description:
+                  "Underlying needs detected (e.g., 'Recognition', 'Security', 'Autonomy', 'Fairness')",
+              },
+              riskFactors: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description:
+                  "Risks to mediation success from this party (e.g., 'Escalation tendency', 'Withdrawal risk', 'Fixed position')",
+              },
+            },
+          },
+          partyB: {
+            type: Type.OBJECT,
+            properties: {
+              emotionalState: { type: Type.STRING },
+              engagementLevel: { type: Type.STRING },
+              communicationStyle: { type: Type.STRING },
+              cooperativeness: { type: Type.NUMBER },
+              defensiveness: { type: Type.NUMBER },
+              keyNeeds: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              riskFactors: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+          },
+        },
+        description:
+          "Psychological profiles for both parties based on conversational signals",
+      },
+      commonGround: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          "Areas of agreement, shared values, or mutual interests identified so far",
+      },
+      tensionPoints: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          "Active points of disagreement or high-emotion topics to handle carefully",
+      },
     },
-    required: ["phase", "targetActor", "currentAction", "missingItems", "structuredItems"]
-  }
+    required: [
+      "phase",
+      "targetActor",
+      "currentAction",
+      "missingItems",
+      "structuredItems",
+      "partyProfiles",
+      "commonGround",
+      "tensionPoints",
+    ],
+  },
 };
 
-export const getLiveSession = (callbacks: any, context: string = "", mediatorProfile: any = { voice: "Zephyr", approach: "Facilitative" }) => {
+export const getLiveSession = (
+  callbacks: any,
+  context: string = "",
+  mediatorProfile: any = { voice: "Zephyr", approach: "Facilitative" },
+  partyNames: { partyA: string; partyB: string } = {
+    partyA: "Party A",
+    partyB: "Party B",
+  },
+) => {
   return ai.live.connect({
     model: "gemini-2.5-flash-native-audio-preview-09-2025",
     callbacks,
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: mediatorProfile.voice } },
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: mediatorProfile.voice },
+        },
       },
       tools: [{ functionDeclarations: [updateMediationStateDeclaration] }],
-      systemInstruction: `You are CONCORDIA, an elite AI Mediator by TACITUS guiding a complex multi-party conflict resolution. Your approach is: ${mediatorProfile.approach}.
+      systemInstruction: `You are CONCORDIA, an elite AI Mediator created by the TACITUS Institute for Conflict Resolution. You are facilitating a live mediation session between two parties: "${partyNames.partyA}" and "${partyNames.partyB}".
 
-Current Case State & Initial Information:
+Your mediation approach is: ${mediatorProfile.approach}.
+
+Current Case Context:
 ${context}
 
-CRITICAL INSTRUCTIONS:
-1. You MUST proactively structure the conversation, guiding it in VERY SMALL STEPS, actor-by-actor.
-2. NEVER ask multiple questions at once. Ask ONE single question, then wait for the user/actor to respond.
-3. Explicitly state who you are addressing (e.g., "Actor 1, can you tell me...").
-4. Phases of Mediation:
-   - Discovery: Ask each actor individually to share their perspective.
-   - Exploration: Identify missing facts, underlying needs, and common ground.
-   - Resolution: Guide actors to propose solutions for specific structured items.
-   - Agreement: Conversationally find an agreement and formalize it.
-5. You MUST call the 'updateMediationState' tool BEFORE you speak to explain what you are doing.
-   - Set 'currentAction' to explain your thought process (e.g., "Focusing on Actor 1's timeline", "Identifying common ground").
-   - Update 'targetActor' to the person you are addressing.
-   - Update 'missingItems' and 'structuredItems' as you learn new facts.
-6. Speak calmly, professionally, and empathetically. Be firm in guiding the process. Do not let the conversation drift.`,
+CORE PROTOCOL:
+
+PHASE PROGRESSION:
+1. OPENING - Welcome both parties. Explain ground rules: mutual respect, one person speaks at a time, confidentiality. Ask each party to briefly introduce themselves and state what brought them here. Set a tone of safety and neutrality.
+
+2. DISCOVERY - Address each party ONE AT A TIME. Ask a single, open-ended question. Listen deeply. Do NOT summarize prematurely. Probe for:
+   - What happened (their narrative)
+   - How it made them feel (emotional dimension)
+   - What they need going forward (underlying interests)
+   - What they have already tried (history of attempts)
+
+3. EXPLORATION - Cross-reference what both parties have said. Identify:
+   - Shared facts vs. disputed facts
+   - Underlying interests that may overlap
+   - Emotional triggers and patterns
+   - Power dynamics and imbalances
+   Ask clarifying questions that help parties see each other's perspective WITHOUT forcing agreement.
+
+4. NEGOTIATION - Guide parties to generate options. Ask "What would it look like if...?" questions. Help them brainstorm without committing. Identify trade-offs and explore flexibility.
+
+5. RESOLUTION - Narrow down to viable pathways. Test agreements: "If X happened, would that address your concern about Y?" Build specific, actionable terms.
+
+6. AGREEMENT - Summarize what has been agreed. Confirm with both parties. Identify remaining concerns. Outline next steps.
+
+CRITICAL BEHAVIORAL RULES:
+- ALWAYS call 'updateMediationState' BEFORE you speak. This updates the visual workspace the parties can see.
+- NEVER ask more than ONE question at a time. Wait for a response.
+- ALWAYS name who you are addressing: "${partyNames.partyA}, ..." or "${partyNames.partyB}, ..."
+- When a party shows strong emotion, VALIDATE it before moving on: "I hear that this has been very difficult for you..."
+- Track psychological indicators: note changes in tone, defensiveness, openness, and update partyProfiles accordingly.
+- When you detect escalation, immediately de-escalate: acknowledge the emotion, slow down, reframe.
+- Identify COMMON GROUND proactively and name it explicitly: "It sounds like you both agree that..."
+- Track TENSION POINTS and approach them strategically, not head-on.
+- Monitor cooperativeness and engagement. If a party disengages, address it directly but gently.
+- Your voice should be calm, measured, empathetic, and authoritative. You are guiding, not judging.
+- Keep your responses concise (2-4 sentences per turn). The parties should talk more than you.`,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
     },
@@ -68,7 +208,7 @@ export const transcribeAudio = async (
   mimeType: string,
 ) => {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.5-flash-preview-05-20",
     contents: [
       {
         parts: [
@@ -110,28 +250,53 @@ export const chatWithAdvisor = async (
   history: { role: string; parts: { text: string }[] }[],
 ) => {
   const chat = ai.chats.create({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-2.5-pro-preview-06-05",
     config: {
-      systemInstruction:
-        "You are the Advisor Agent for CONCORDIA. You synthesize conflict primitives into actionable talking points, briefing drafts, and resolution pathways based on the TACITUS approach (reification, traces of conflict, temporal graphs).",
+      systemInstruction: `You are the Strategic Advisor Agent for CONCORDIA, the TACITUS Institute's AI mediation platform.
+
+Your role is to provide deep analytical support for conflict resolution. You synthesize conflict primitives (Claims, Interests, Constraints, Leverage, Commitments, Events) into:
+
+1. Analytical Briefings - Break down the conflict structure, identify power dynamics, highlight hidden interests
+2. Tactical Recommendations - Suggest specific questions to ask, reframing strategies, de-escalation techniques
+3. Resolution Pathways - Propose concrete solution options with trade-off analysis
+4. Psychological Insights - Identify emotional patterns, communication styles, and underlying needs
+5. Risk Assessment - Flag potential escalation triggers, power imbalances, and process risks
+
+Draw upon established frameworks:
+- Principled Negotiation (Fisher & Ury) - Focus on interests, not positions
+- Transformative Mediation - Empowerment and recognition
+- Narrative Mediation - Deconstructing conflict stories
+- TACITUS Ontology - Reification, temporal graphs, traces of conflict
+
+Be direct, specific, and actionable. Avoid generic advice. Reference specific elements from the case when available.`,
     },
   });
-
-  // We can't easily pass history to chats.create in this SDK version without a bit of work,
-  // so we'll just send the message. For a real app, we'd manage history manually or use the SDK's history feature if available.
-  // Actually, we can just use generateContent with history if needed, but let's stick to chat.sendMessage for simplicity.
 
   const response = await chat.sendMessage({ message });
   return response.text;
 };
 
-export const analyzePathways = async (transcript: string, caseStructure: string) => {
+export const analyzePathways = async (
+  transcript: string,
+  caseStructure: string,
+) => {
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Based on the following mediation transcript and case structure, identify:
-1. Common Ground (shared interests, acknowledged facts, or explicit agreements)
-2. Critical Questions (provocative, targeted questions to ask the parties to resolve remaining discrepancies)
-3. Resolution Pathways (potential solutions, or if parties have agreed on elements, a structured formal resolution path that works)
+    model: "gemini-2.5-pro-preview-06-05",
+    contents: `You are the Resolution Architect for the CONCORDIA mediation platform.
+
+Analyze the following mediation transcript and case structure. Produce a detailed resolution analysis:
+
+1. Common Ground - Identify shared interests, acknowledged facts, explicit or implicit agreements, shared values, and mutual concerns. Be specific.
+
+2. Critical Questions - Generate provocative, targeted questions designed to:
+   - Reveal hidden interests behind stated positions
+   - Test the flexibility of seemingly fixed positions
+   - Help parties see each other's perspective
+   - Move from blame to problem-solving
+
+3. Resolution Pathways - Propose concrete, actionable pathways. For each pathway describe the solution, explain which interests it serves, note trade-offs, and suggest implementation steps.
+
+4. Psychological Dynamics - Assess the emotional landscape: power balance, emotional readiness, communication patterns, and recommended approach adjustments.
 
 Transcript:
 ${transcript}
@@ -143,22 +308,49 @@ ${caseStructure}`,
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          commonGround: { type: Type.ARRAY, items: { type: Type.STRING } },
-          criticalQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
-          pathways: { type: Type.ARRAY, items: { type: Type.STRING } }
-        }
-      }
-    }
+          commonGround: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          criticalQuestions: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          pathways: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          psychologicalDynamics: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      },
+    },
   });
   return response.text;
 };
 
 export const extractPrimitives = async (text: string) => {
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Extract conflict primitives from the following text based on the TACITUS ontology. 
-Identify the Actors involved, and for each actor, identify their Claims, Interests, Constraints, Leverage, Commitments, and Events.
-Text: ${text}`,
+    model: "gemini-2.5-pro-preview-06-05",
+    contents: `You are the Extraction Agent for the CONCORDIA mediation platform, using the TACITUS conflict ontology.
+
+Extract structured conflict primitives from the following mediation transcript. For each party involved, identify:
+
+- Claims - What each party states as fact or asserts as their position
+- Interests - The underlying needs, desires, fears, or motivations behind their claims
+- Constraints - Limitations, boundaries, or non-negotiables each party has
+- Leverage - Sources of power, influence, or advantage each party holds
+- Commitments - Promises, obligations, or agreements already made
+- Events - Key incidents, timeline markers, or turning points referenced
+
+Also identify the actors with their names and roles/stances.
+
+Be thorough. Extract EVERYTHING relevant, even if implied rather than explicitly stated.
+
+Text:
+${text}`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -170,32 +362,36 @@ Text: ${text}`,
               type: Type.OBJECT,
               properties: {
                 name: { type: Type.STRING },
-                role: { type: Type.STRING }
-              }
-            }
+                role: { type: Type.STRING },
+              },
+            },
           },
           primitives: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                type: { type: Type.STRING, description: "Must be exactly 'Claim', 'Interest', 'Constraint', 'Leverage', 'Commitment', or 'Event'" },
+                type: {
+                  type: Type.STRING,
+                  description:
+                    "Must be exactly 'Claim', 'Interest', 'Constraint', 'Leverage', 'Commitment', or 'Event'",
+                },
                 actorName: { type: Type.STRING },
-                description: { type: Type.STRING }
-              }
-            }
-          }
-        }
-      }
-    }
+                description: { type: Type.STRING },
+              },
+            },
+          },
+        },
+      },
+    },
   });
   return response.text;
 };
 
 export const researchGrounding = async (query: string) => {
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Research the following conflict context or entities to provide grounding facts: ${query}`,
+    model: "gemini-2.5-pro-preview-06-05",
+    contents: `Research the following conflict context or entities to provide grounding facts, legal precedents, or relevant background information that could inform the mediation: ${query}`,
     config: {
       tools: [{ googleSearch: {} }],
     },
