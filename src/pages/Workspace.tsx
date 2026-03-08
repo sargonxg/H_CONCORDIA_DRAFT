@@ -1,163 +1,466 @@
 import { useState, useRef, useEffect } from "react";
-import { motion } from "motion/react";
-import { Mic, Square, Activity, Database, FileText, Search, Plus, Trash2, FolderOpen, ChevronLeft, UserPlus, Network, CheckCircle2, Circle, Settings2, Lightbulb } from "lucide-react";
-import { getLiveSession, extractPrimitives, researchGrounding, analyzePathways } from "../services/geminiService";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Mic,
+  Square,
+  Activity,
+  Database,
+  FileText,
+  Search,
+  Plus,
+  Trash2,
+  FolderOpen,
+  ChevronLeft,
+  UserPlus,
+  Network,
+  CheckCircle2,
+  Circle,
+  Settings2,
+  Lightbulb,
+  Shield,
+  Heart,
+  AlertTriangle,
+  TrendingUp,
+  Users,
+  Zap,
+  Brain,
+  Target,
+  MessageCircle,
+} from "lucide-react";
+import {
+  getLiveSession,
+  extractPrimitives,
+  researchGrounding,
+  analyzePathways,
+} from "../services/geminiService";
 
-type Actor = { id: string, name: string, role: string };
-type PrimitiveType = 'Claim' | 'Interest' | 'Constraint' | 'Leverage' | 'Commitment' | 'Event';
-type Primitive = { id: string, type: PrimitiveType, actorId: string, description: string };
-type Case = { id: string, title: string, updatedAt: string, transcript: string, actors: Actor[], primitives: Primitive[] };
+type Actor = { id: string; name: string; role: string };
+type PrimitiveType =
+  | "Claim"
+  | "Interest"
+  | "Constraint"
+  | "Leverage"
+  | "Commitment"
+  | "Event";
+type Primitive = {
+  id: string;
+  type: PrimitiveType;
+  actorId: string;
+  description: string;
+};
 
-const PRIMITIVE_TYPES: PrimitiveType[] = ['Claim', 'Interest', 'Constraint', 'Leverage', 'Commitment', 'Event'];
+type PartyProfile = {
+  emotionalState: string;
+  engagementLevel: string;
+  communicationStyle: string;
+  cooperativeness: number;
+  defensiveness: number;
+  keyNeeds: string[];
+  riskFactors: string[];
+};
+
+type Case = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  transcript: string;
+  actors: Actor[];
+  primitives: Primitive[];
+  partyAName: string;
+  partyBName: string;
+};
+
+const PRIMITIVE_TYPES: PrimitiveType[] = [
+  "Claim",
+  "Interest",
+  "Constraint",
+  "Leverage",
+  "Commitment",
+  "Event",
+];
+
+const PHASES = [
+  "Opening",
+  "Discovery",
+  "Exploration",
+  "Negotiation",
+  "Resolution",
+  "Agreement",
+];
+
+const EMOTION_COLORS: Record<string, string> = {
+  Calm: "text-emerald-400",
+  Anxious: "text-amber-400",
+  Defensive: "text-orange-400",
+  Angry: "text-red-400",
+  Frustrated: "text-orange-500",
+  Hopeful: "text-sky-400",
+  Resigned: "text-gray-400",
+  Guarded: "text-yellow-500",
+  Open: "text-emerald-300",
+  Distressed: "text-red-500",
+};
+
+function GaugeBar({
+  value,
+  color,
+  label,
+}: {
+  value: number;
+  color: string;
+  label: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-[10px] uppercase tracking-wider">
+        <span className="text-[var(--color-text-muted)]">{label}</span>
+        <span className="font-mono font-bold" style={{ color }}>
+          {value}%
+        </span>
+      </div>
+      <div className="h-1.5 bg-[var(--color-bg)] rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: color }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PartyCard({
+  name,
+  profile,
+  side,
+}: {
+  name: string;
+  profile: PartyProfile | null;
+  side: "A" | "B";
+}) {
+  const borderColor =
+    side === "A"
+      ? "border-sky-500/40 shadow-sky-500/5"
+      : "border-violet-500/40 shadow-violet-500/5";
+  const accentColor = side === "A" ? "#0ea5e9" : "#8b5cf6";
+  const bgGlow =
+    side === "A"
+      ? "from-sky-500/5 to-transparent"
+      : "from-violet-500/5 to-transparent";
+  const emotionColor = profile
+    ? EMOTION_COLORS[profile.emotionalState] || "text-gray-400"
+    : "text-gray-500";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`bg-gradient-to-b ${bgGlow} bg-[var(--color-surface)] border ${borderColor} rounded-xl p-4 shadow-lg flex-1 min-w-0`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+          style={{ backgroundColor: accentColor }}
+        >
+          {side}
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-white truncate">{name}</h3>
+          {profile && (
+            <span className={`text-[10px] font-mono uppercase ${emotionColor}`}>
+              {profile.emotionalState} / {profile.communicationStyle}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {profile ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <GaugeBar
+              value={profile.cooperativeness}
+              color="#10b981"
+              label="Cooperativeness"
+            />
+            <GaugeBar
+              value={profile.defensiveness}
+              color="#ef4444"
+              label="Defensiveness"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider">
+              Engagement:
+            </span>
+            <span
+              className={`text-[10px] font-bold ${
+                profile.engagementLevel === "High"
+                  ? "text-emerald-400"
+                  : profile.engagementLevel === "Medium"
+                    ? "text-amber-400"
+                    : "text-red-400"
+              }`}
+            >
+              {profile.engagementLevel}
+            </span>
+          </div>
+
+          {profile.keyNeeds.length > 0 && (
+            <div>
+              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Heart className="w-3 h-3" /> Underlying Needs
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {profile.keyNeeds.map((need, i) => (
+                  <span
+                    key={i}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)] text-white"
+                  >
+                    {need}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {profile.riskFactors.length > 0 && (
+            <div>
+              <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-amber-500" /> Risk
+                Factors
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {profile.riskFactors.map((risk, i) => (
+                  <span
+                    key={i}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/5 text-amber-400"
+                  >
+                    {risk}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-[11px] text-[var(--color-text-muted)] italic py-4 text-center">
+          Awaiting session data...
+        </div>
+      )}
+    </motion.div>
+  );
+}
 
 export default function Workspace() {
   const [cases, setCases] = useState<Case[]>([]);
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
-  
+
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState("IDLE");
   const [research, setResearch] = useState<any>(null);
   const [pathways, setPathways] = useState<any>(null);
-  const [mediatorProfile, setMediatorProfile] = useState({ voice: "Zephyr", approach: "Facilitative" });
+  const [mediatorProfile, setMediatorProfile] = useState({
+    voice: "Zephyr",
+    approach: "Facilitative",
+  });
   const [showSettings, setShowSettings] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState<
+    "transcript" | "structure" | "pathways"
+  >("transcript");
+
   const [liveMediationState, setLiveMediationState] = useState<{
     phase: string;
     targetActor: string;
     currentAction: string;
     missingItems: string[];
     structuredItems: { topic: string; summary: string; actor: string }[];
+    partyProfiles: {
+      partyA: PartyProfile | null;
+      partyB: PartyProfile | null;
+    };
+    commonGround: string[];
+    tensionPoints: string[];
   } | null>(null);
-  
+
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  
+
   const activeCaseIdRef = useRef<string | null>(null);
   activeCaseIdRef.current = activeCaseId;
 
-  // Load cases
   useEffect(() => {
-    const saved = localStorage.getItem('concordia_cases');
+    const saved = localStorage.getItem("concordia_cases");
     if (saved) {
       setCases(JSON.parse(saved));
     }
   }, []);
 
-  // Save cases
   useEffect(() => {
-    localStorage.setItem('concordia_cases', JSON.stringify(cases));
+    localStorage.setItem("concordia_cases", JSON.stringify(cases));
   }, [cases]);
 
   const createNewCase = () => {
     const newCase: Case = {
       id: Date.now().toString(),
-      title: "New Conflict Case",
+      title: "New Mediation Case",
       updatedAt: new Date().toISOString(),
       transcript: "",
       actors: [
-        { id: 'a1', name: 'Actor 1', role: 'Primary Disputant' },
-        { id: 'a2', name: 'Actor 2', role: 'Secondary Disputant' }
+        { id: "a1", name: "Party A", role: "Disputant" },
+        { id: "a2", name: "Party B", role: "Disputant" },
       ],
-      primitives: []
+      primitives: [],
+      partyAName: "Party A",
+      partyBName: "Party B",
     };
     setCases([newCase, ...cases]);
     setActiveCaseId(newCase.id);
   };
 
-  const activeCase = cases.find(c => c.id === activeCaseId);
+  const activeCase = cases.find((c) => c.id === activeCaseId);
 
   const updateActiveCase = (updates: Partial<Case>) => {
-    setCases(prev => prev.map(c => c.id === activeCaseId ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c));
+    setCases((prev) =>
+      prev.map((c) =>
+        c.id === activeCaseId
+          ? { ...c, ...updates, updatedAt: new Date().toISOString() }
+          : c,
+      ),
+    );
   };
 
   const startSession = async () => {
     try {
       setStatus("CONNECTING");
-      
-      // Pass the current ontology state to the Live API so it can act as a mediator
-      const currentGraphContext = JSON.stringify({
-        actors: activeCase?.actors,
-        primitives: activeCase?.primitives
-      }, null, 2);
 
-      const session = await getLiveSession({
-        onopen: () => {
-          setStatus("LISTENING");
-          setIsRecording(true);
-          startAudioCapture();
+      const currentGraphContext = JSON.stringify(
+        {
+          actors: activeCase?.actors,
+          primitives: activeCase?.primitives,
         },
-        onmessage: async (message: any) => {
-          // Handle incoming audio
-          const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-          if (base64Audio) {
-            playAudio(base64Audio);
-          }
-          
-          // Handle transcription if available
-          const aiText = message.serverContent?.modelTurn?.parts?.[0]?.text;
-          const userText = message.clientContent?.turnComplete?.text || message.serverContent?.clientContent?.turnComplete?.text;
-          
-          if (aiText && activeCaseIdRef.current) {
-            setCases(prev => prev.map(c => c.id === activeCaseIdRef.current ? { 
-              ...c, 
-              transcript: c.transcript + (c.transcript ? "\n\n" : "") + "[Concordia]: " + aiText 
-            } : c));
-          }
-          if (userText && activeCaseIdRef.current) {
-            setCases(prev => prev.map(c => c.id === activeCaseIdRef.current ? { 
-              ...c, 
-              transcript: c.transcript + (c.transcript ? "\n\n" : "") + "[User]: " + userText 
-            } : c));
-          }
+        null,
+        2,
+      );
 
-          // Handle tool calls
-          if (message.toolCall) {
-            const functionCalls = message.toolCall.functionCalls;
-            if (functionCalls && functionCalls.length > 0) {
-              const responses = functionCalls.map((call: any) => {
-                if (call.name === "updateMediationState") {
-                  const args = call.args;
-                  setLiveMediationState({
-                    phase: args.phase || "Discovery",
-                    targetActor: args.targetActor || "All",
-                    currentAction: args.currentAction || "Analyzing conversation...",
-                    missingItems: args.missingItems || [],
-                    structuredItems: args.structuredItems || []
-                  });
+      const session = await getLiveSession(
+        {
+          onopen: () => {
+            setStatus("LIVE");
+            setIsRecording(true);
+            startAudioCapture();
+          },
+          onmessage: async (message: any) => {
+            const base64Audio =
+              message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            if (base64Audio) {
+              playAudio(base64Audio);
+            }
+
+            const aiText =
+              message.serverContent?.modelTurn?.parts?.[0]?.text;
+            const userText =
+              message.clientContent?.turnComplete?.text ||
+              message.serverContent?.clientContent?.turnComplete?.text;
+
+            if (aiText && activeCaseIdRef.current) {
+              setCases((prev) =>
+                prev.map((c) =>
+                  c.id === activeCaseIdRef.current
+                    ? {
+                        ...c,
+                        transcript:
+                          c.transcript +
+                          (c.transcript ? "\n\n" : "") +
+                          "[Concordia]: " +
+                          aiText,
+                      }
+                    : c,
+                ),
+              );
+            }
+            if (userText && activeCaseIdRef.current) {
+              setCases((prev) =>
+                prev.map((c) =>
+                  c.id === activeCaseIdRef.current
+                    ? {
+                        ...c,
+                        transcript:
+                          c.transcript +
+                          (c.transcript ? "\n\n" : "") +
+                          "[Speaker]: " +
+                          userText,
+                      }
+                    : c,
+                ),
+              );
+            }
+
+            if (message.toolCall) {
+              const functionCalls = message.toolCall.functionCalls;
+              if (functionCalls && functionCalls.length > 0) {
+                const responses = functionCalls.map((call: any) => {
+                  if (call.name === "updateMediationState") {
+                    const args = call.args;
+                    setLiveMediationState({
+                      phase: args.phase || "Opening",
+                      targetActor: args.targetActor || "Both",
+                      currentAction:
+                        args.currentAction || "Analyzing conversation...",
+                      missingItems: args.missingItems || [],
+                      structuredItems: args.structuredItems || [],
+                      partyProfiles: {
+                        partyA: args.partyProfiles?.partyA || null,
+                        partyB: args.partyProfiles?.partyB || null,
+                      },
+                      commonGround: args.commonGround || [],
+                      tensionPoints: args.tensionPoints || [],
+                    });
+                    return {
+                      id: call.id,
+                      name: call.name,
+                      response: { result: "UI updated successfully" },
+                    };
+                  }
                   return {
                     id: call.id,
                     name: call.name,
-                    response: { result: "UI updated successfully" }
+                    response: { error: "Unknown function" },
                   };
+                });
+
+                if (sessionRef.current) {
+                  sessionRef.current.sendToolResponse({
+                    functionResponses: responses,
+                  });
                 }
-                return {
-                  id: call.id,
-                  name: call.name,
-                  response: { error: "Unknown function" }
-                };
-              });
-              
-              if (sessionRef.current) {
-                sessionRef.current.sendToolResponse({ functionResponses: responses });
               }
             }
-          }
+          },
+          onclose: () => {
+            setStatus("DISCONNECTED");
+            setIsRecording(false);
+            stopAudioCapture();
+          },
+          onerror: (err: any) => {
+            console.error("Live API Error:", err);
+            setStatus("ERROR");
+            setIsRecording(false);
+            stopAudioCapture();
+          },
         },
-        onclose: () => {
-          setStatus("DISCONNECTED");
-          setIsRecording(false);
-          stopAudioCapture();
+        currentGraphContext,
+        mediatorProfile,
+        {
+          partyA: activeCase?.partyAName || "Party A",
+          partyB: activeCase?.partyBName || "Party B",
         },
-        onerror: (err: any) => {
-          console.error("Live API Error:", err);
-          setStatus("ERROR");
-          setIsRecording(false);
-          stopAudioCapture();
-        }
-      }, currentGraphContext, mediatorProfile);
+      );
       sessionRef.current = session;
     } catch (error) {
       console.error("Failed to start session:", error);
@@ -173,8 +476,7 @@ export default function Workspace() {
     setIsRecording(false);
     setStatus("IDLE");
     stopAudioCapture();
-    
-    // Automatically trigger Phase 2: Structuring and Pathways
+
     if (activeCase?.transcript) {
       handleSimulateExtraction();
     }
@@ -184,37 +486,37 @@ export default function Workspace() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      
+
       const audioContext = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = audioContext;
-      
+
       const source = audioContext.createMediaStreamSource(stream);
       sourceRef.current = source;
-      
+
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
-      
+
       source.connect(processor);
       processor.connect(audioContext.destination);
-      
+
       processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
         const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
-          pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+          pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7fff;
         }
-        
+
         const buffer = new ArrayBuffer(pcm16.length * 2);
         const view = new DataView(buffer);
         for (let i = 0; i < pcm16.length; i++) {
           view.setInt16(i * 2, pcm16[i], true);
         }
-        
+
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        
+
         if (sessionRef.current) {
           sessionRef.current.sendRealtimeInput({
-            media: { data: base64, mimeType: "audio/pcm;rate=16000" }
+            media: { data: base64, mimeType: "audio/pcm;rate=16000" },
           });
         }
       };
@@ -237,7 +539,7 @@ export default function Workspace() {
       audioContextRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
   };
@@ -249,15 +551,15 @@ export default function Workspace() {
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      
+
       const audioContext = new AudioContext({ sampleRate: 24000 });
       const pcm16 = new Int16Array(bytes.buffer);
       const audioBuffer = audioContext.createBuffer(1, pcm16.length, 24000);
       const channelData = audioBuffer.getChannelData(0);
       for (let i = 0; i < pcm16.length; i++) {
-        channelData[i] = pcm16[i] / 0x7FFF;
+        channelData[i] = pcm16[i] / 0x7fff;
       }
-      
+
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
@@ -273,109 +575,175 @@ export default function Workspace() {
     try {
       const resultStr = await extractPrimitives(activeCase.transcript);
       const result = JSON.parse(resultStr);
-      
+
       let newActors = [...activeCase.actors];
       let newPrimitives = [...activeCase.primitives];
 
       result.actors?.forEach((a: any) => {
-        if (!newActors.find(existing => existing.name.toLowerCase() === a.name.toLowerCase())) {
-          newActors.push({ id: Date.now().toString() + Math.random(), name: a.name, role: a.role || 'Unknown' });
+        if (
+          !newActors.find(
+            (existing) =>
+              existing.name.toLowerCase() === a.name.toLowerCase(),
+          )
+        ) {
+          newActors.push({
+            id: Date.now().toString() + Math.random(),
+            name: a.name,
+            role: a.role || "Unknown",
+          });
         }
       });
 
       result.primitives?.forEach((p: any) => {
-        const actor = newActors.find(a => a.name.toLowerCase() === p.actorName?.toLowerCase());
+        const actor = newActors.find(
+          (a) => a.name.toLowerCase() === p.actorName?.toLowerCase(),
+        );
         const actorId = actor ? actor.id : newActors[0]?.id;
         if (actorId) {
           newPrimitives.push({
             id: Date.now().toString() + Math.random(),
-            type: PRIMITIVE_TYPES.includes(p.type as PrimitiveType) ? p.type : 'Claim',
+            type: PRIMITIVE_TYPES.includes(p.type as PrimitiveType)
+              ? p.type
+              : "Claim",
             actorId,
-            description: p.description
+            description: p.description,
           });
         }
       });
 
       updateActiveCase({ actors: newActors, primitives: newPrimitives });
-      
-      // Trigger research and pathways
-      const currentGraphContext = JSON.stringify({ actors: newActors, primitives: newPrimitives }, null, 2);
-      
+
+      const currentGraphContext = JSON.stringify(
+        { actors: newActors, primitives: newPrimitives },
+        null,
+        2,
+      );
+
       const [researchRes, pathwaysResStr] = await Promise.all([
         researchGrounding(activeCase.transcript),
-        analyzePathways(activeCase.transcript, currentGraphContext)
+        analyzePathways(activeCase.transcript, currentGraphContext),
       ]);
-      
+
       setResearch(researchRes);
       try {
         setPathways(JSON.parse(pathwaysResStr));
-      } catch(e) { console.error("Failed to parse pathways", e); }
-      
+      } catch (e) {
+        console.error("Failed to parse pathways", e);
+      }
+
       setStatus("IDLE");
+      setActiveTab("pathways");
     } catch (err) {
       console.error("Extraction error:", err);
       setStatus("ERROR");
     }
   };
 
-  // Ontology Modifiers
   const addActor = () => {
-    updateActiveCase({ actors: [...activeCase!.actors, { id: Date.now().toString(), name: "New Actor", role: "Role" }] });
+    updateActiveCase({
+      actors: [
+        ...activeCase!.actors,
+        { id: Date.now().toString(), name: "New Actor", role: "Role" },
+      ],
+    });
   };
   const updateActor = (id: string, updates: Partial<Actor>) => {
-    updateActiveCase({ actors: activeCase!.actors.map(a => a.id === id ? { ...a, ...updates } : a) });
+    updateActiveCase({
+      actors: activeCase!.actors.map((a) =>
+        a.id === id ? { ...a, ...updates } : a,
+      ),
+    });
   };
   const deleteActor = (id: string) => {
-    updateActiveCase({ 
-      actors: activeCase!.actors.filter(a => a.id !== id),
-      primitives: activeCase!.primitives.filter(p => p.actorId !== id)
+    updateActiveCase({
+      actors: activeCase!.actors.filter((a) => a.id !== id),
+      primitives: activeCase!.primitives.filter((p) => p.actorId !== id),
     });
   };
 
   const addPrimitive = (actorId: string) => {
-    updateActiveCase({ primitives: [...activeCase!.primitives, { id: Date.now().toString(), type: 'Claim', actorId, description: "New description" }] });
+    updateActiveCase({
+      primitives: [
+        ...activeCase!.primitives,
+        {
+          id: Date.now().toString(),
+          type: "Claim",
+          actorId,
+          description: "New description",
+        },
+      ],
+    });
   };
   const updatePrimitive = (id: string, updates: Partial<Primitive>) => {
-    updateActiveCase({ primitives: activeCase!.primitives.map(p => p.id === id ? { ...p, ...updates } : p) });
+    updateActiveCase({
+      primitives: activeCase!.primitives.map((p) =>
+        p.id === id ? { ...p, ...updates } : p,
+      ),
+    });
   };
   const deletePrimitive = (id: string) => {
-    updateActiveCase({ primitives: activeCase!.primitives.filter(p => p.id !== id) });
+    updateActiveCase({
+      primitives: activeCase!.primitives.filter((p) => p.id !== id),
+    });
   };
 
+  // ─── CASE LIST VIEW ───
   if (!activeCaseId) {
     return (
       <div className="flex-1 p-8 overflow-y-auto bg-[var(--color-bg)]">
         <header className="mb-12">
-          <h1 className="text-3xl font-bold tracking-tight">Case Management</h1>
-          <p className="text-[var(--color-text-muted)] mt-2">Select an existing conflict case or create a new one to begin.</p>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <Shield className="w-8 h-8 text-[var(--color-accent)]" />
+            Mediation Cases
+          </h1>
+          <p className="text-[var(--color-text-muted)] mt-2 max-w-xl">
+            Each case represents a mediation session between two parties.
+            Create a new case to begin a guided conflict resolution process.
+          </p>
         </header>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          <button 
+          <button
             onClick={createNewCase}
-            className="h-48 border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] rounded-xl flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+            className="h-52 border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] rounded-xl flex flex-col items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-all hover:shadow-lg hover:shadow-[var(--color-accent)]/5"
           >
             <Plus className="w-8 h-8 mb-3" />
-            <span className="font-medium">Create New Case</span>
+            <span className="font-medium">New Mediation</span>
+            <span className="text-xs mt-1 opacity-60">
+              Two-party conflict resolution
+            </span>
           </button>
-          
-          {cases.map(c => (
-            <div 
-              key={c.id} 
-              className="h-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 flex flex-col hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer group relative" 
+
+          {cases.map((c) => (
+            <div
+              key={c.id}
+              className="h-52 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 flex flex-col hover:bg-[var(--color-surface-hover)] hover:border-[var(--color-accent)]/30 transition-all cursor-pointer group relative"
               onClick={() => setActiveCaseId(c.id)}
             >
               <div className="flex items-start justify-between mb-auto">
-                <h3 className="font-semibold text-lg line-clamp-2 pr-4">{c.title}</h3>
+                <h3 className="font-semibold text-lg line-clamp-2 pr-4">
+                  {c.title}
+                </h3>
                 <FolderOpen className="w-5 h-5 text-[var(--color-accent)] shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
               </div>
-              <div className="text-sm text-[var(--color-text-muted)] mt-4 space-y-1">
-                <p className="flex items-center gap-2"><UserPlus className="w-3 h-3"/> {c.actors.length} Actors</p>
-                <p className="flex items-center gap-2"><Network className="w-3 h-3"/> {c.primitives.length} Primitives</p>
-                <p className="text-xs mt-3 opacity-50">Updated: {new Date(c.updatedAt).toLocaleDateString()}</p>
+              <div className="text-sm text-[var(--color-text-muted)] mt-4 space-y-1.5">
+                <p className="flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5" />
+                  {c.partyAName || "Party A"} vs {c.partyBName || "Party B"}
+                </p>
+                <p className="flex items-center gap-2">
+                  <Network className="w-3.5 h-3.5" /> {c.primitives.length}{" "}
+                  Primitives
+                </p>
+                <p className="text-xs mt-3 opacity-50">
+                  Updated: {new Date(c.updatedAt).toLocaleDateString()}
+                </p>
               </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setCases(cases.filter(x => x.id !== c.id)); }}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCases(cases.filter((x) => x.id !== c.id));
+                }}
                 className="absolute bottom-4 right-4 p-2 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] opacity-0 group-hover:opacity-100 transition-opacity rounded-md hover:bg-red-500/10"
               >
                 <Trash2 className="w-4 h-4" />
@@ -387,50 +755,81 @@ export default function Workspace() {
     );
   }
 
-  // Calculate Health Check
-  const presentTypes = new Set(activeCase?.primitives.map(p => p.type));
-  const healthScore = Math.round((presentTypes.size / PRIMITIVE_TYPES.length) * 100);
+  const presentTypes = new Set(activeCase?.primitives.map((p) => p.type));
+  const healthScore = Math.round(
+    (presentTypes.size / PRIMITIVE_TYPES.length) * 100,
+  );
+  const currentPhaseIdx = PHASES.indexOf(
+    liveMediationState?.phase || "Opening",
+  );
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-6 gap-6 bg-[var(--color-bg)]">
-      
-      <header className="flex justify-between items-center pb-4 border-b border-[var(--color-border)]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--color-bg)]">
+      {/* ─── TOP BAR ─── */}
+      <header className="flex justify-between items-center px-6 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] shrink-0">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => setActiveCaseId(null)}
-            className="p-2 hover:bg-[var(--color-surface)] rounded-md text-[var(--color-text-muted)] hover:text-white transition-colors"
+            className="p-2 hover:bg-[var(--color-surface-hover)] rounded-md text-[var(--color-text-muted)] hover:text-white transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div>
-            <input 
+            <input
               value={activeCase?.title}
-              onChange={e => updateActiveCase({ title: e.target.value })}
-              className="text-2xl font-bold tracking-tight bg-transparent border-none focus:outline-none focus:ring-0 p-0 m-0 w-full max-w-md"
+              onChange={(e) => updateActiveCase({ title: e.target.value })}
+              className="text-xl font-bold tracking-tight bg-transparent border-none focus:outline-none focus:ring-0 p-0 m-0 w-full max-w-md"
             />
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">Live Mediation Workspace</p>
+            <div className="flex items-center gap-3 mt-1">
+              <input
+                value={activeCase?.partyAName}
+                onChange={(e) =>
+                  updateActiveCase({ partyAName: e.target.value })
+                }
+                className="text-xs bg-transparent border-b border-sky-500/30 focus:border-sky-500 focus:outline-none text-sky-400 font-mono w-24 px-1"
+                placeholder="Party A"
+              />
+              <span className="text-xs text-[var(--color-text-muted)]">vs</span>
+              <input
+                value={activeCase?.partyBName}
+                onChange={(e) =>
+                  updateActiveCase({ partyBName: e.target.value })
+                }
+                className="text-xs bg-transparent border-b border-violet-500/30 focus:border-violet-500 focus:outline-none text-violet-400 font-mono w-24 px-1"
+                placeholder="Party B"
+              />
+            </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-3">
           <div className="relative">
-            <button 
+            <button
               onClick={() => setShowSettings(!showSettings)}
-              className="p-2 hover:bg-[var(--color-surface)] rounded-md text-[var(--color-text-muted)] hover:text-white transition-colors"
+              className="p-2 hover:bg-[var(--color-surface-hover)] rounded-md text-[var(--color-text-muted)] hover:text-white transition-colors"
               title="Mediator Settings"
             >
               <Settings2 className="w-5 h-5" />
             </button>
-            
+
             {showSettings && (
               <div className="absolute top-full right-0 mt-2 w-64 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-4 z-50">
-                <h3 className="text-sm font-semibold mb-3">Mediator Profile</h3>
+                <h3 className="text-sm font-semibold mb-3">
+                  Mediator Profile
+                </h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs text-[var(--color-text-muted)] block mb-1">Voice</label>
-                    <select 
+                    <label className="text-xs text-[var(--color-text-muted)] block mb-1">
+                      Voice
+                    </label>
+                    <select
                       value={mediatorProfile.voice}
-                      onChange={e => setMediatorProfile({...mediatorProfile, voice: e.target.value})}
+                      onChange={(e) =>
+                        setMediatorProfile({
+                          ...mediatorProfile,
+                          voice: e.target.value,
+                        })
+                      }
                       className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-sm p-1.5 focus:outline-none focus:border-[var(--color-accent)]"
                     >
                       <option value="Zephyr">Zephyr (Calm, Neutral)</option>
@@ -439,16 +838,31 @@ export default function Workspace() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--color-text-muted)] block mb-1">Approach</label>
-                    <select 
+                    <label className="text-xs text-[var(--color-text-muted)] block mb-1">
+                      Approach
+                    </label>
+                    <select
                       value={mediatorProfile.approach}
-                      onChange={e => setMediatorProfile({...mediatorProfile, approach: e.target.value})}
+                      onChange={(e) =>
+                        setMediatorProfile({
+                          ...mediatorProfile,
+                          approach: e.target.value,
+                        })
+                      }
                       className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-sm p-1.5 focus:outline-none focus:border-[var(--color-accent)]"
                     >
-                      <option value="Facilitative">Facilitative (Guide process)</option>
-                      <option value="Evaluative">Evaluative (Assess merits)</option>
-                      <option value="Transformative">Transformative (Empowerment)</option>
-                      <option value="Narrative">Narrative (Deconstruct stories)</option>
+                      <option value="Facilitative">
+                        Facilitative (Guide process)
+                      </option>
+                      <option value="Evaluative">
+                        Evaluative (Assess merits)
+                      </option>
+                      <option value="Transformative">
+                        Transformative (Empowerment)
+                      </option>
+                      <option value="Narrative">
+                        Narrative (Deconstruct stories)
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -456,281 +870,580 @@ export default function Workspace() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-sm font-mono bg-[var(--color-surface)] px-3 py-1.5 rounded-md border border-[var(--color-border)]">
-            <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`}></span>
+          <div className="flex items-center gap-2 text-sm font-mono bg-[var(--color-bg)] px-3 py-1.5 rounded-md border border-[var(--color-border)]">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isRecording
+                  ? "bg-red-500 animate-pulse"
+                  : status === "ANALYZING"
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-gray-500"
+              }`}
+            ></span>
             {status}
           </div>
-          
+
           <button
             onClick={isRecording ? stopSession : startSession}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-              isRecording 
-                ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20' 
-                : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)]'
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all ${
+              isRecording
+                ? "bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 shadow-lg shadow-red-500/10"
+                : "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] shadow-lg shadow-[var(--color-accent)]/20"
             }`}
           >
-            {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            {isRecording ? 'Stop Session' : 'Start Live Session'}
+            {isRecording ? (
+              <Square className="w-4 h-4" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
+            {isRecording ? "End Session" : "Start Live Session"}
           </button>
         </div>
       </header>
 
-      {isRecording && liveMediationState && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-[var(--color-surface)] border border-[var(--color-accent)] rounded-xl p-6 shadow-lg shadow-[var(--color-accent)]/10 shrink-0"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-[var(--color-accent)] animate-pulse" />
-              <h2 className="text-lg font-bold text-white">Live Mediation: {liveMediationState.phase} Phase</h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="px-4 py-1.5 bg-[var(--color-surface-hover)] rounded-full border border-[var(--color-border)]">
-                <span className="text-sm text-[var(--color-text-muted)]">Speaking: </span>
-                <span className="text-sm font-bold text-[var(--color-accent)]">{liveMediationState.targetActor}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-6 p-4 bg-[var(--color-bg)] border border-[var(--color-accent)]/30 rounded-lg flex items-start gap-3">
-            <Activity className="w-5 h-5 text-[var(--color-accent)] mt-0.5 shrink-0" />
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-accent)] mb-1">AI Mediator Focus</h3>
-              <p className="text-sm text-white">{liveMediationState.currentAction || "Analyzing conversation..."}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Missing Items */}
-            <div className="bg-[var(--color-bg)] rounded-lg p-4 border border-[var(--color-border)]">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-500 mb-3 flex items-center gap-2">
-                <Search className="w-4 h-4" /> Information Needed
-              </h3>
-              {liveMediationState.missingItems.length > 0 ? (
-                <ul className="space-y-2">
-                  {liveMediationState.missingItems.map((item, idx) => (
-                    <motion.li 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      key={idx} 
-                      className="text-sm text-white flex items-start gap-2"
-                    >
-                      <span className="text-amber-500 mt-0.5">•</span> {item}
-                    </motion.li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-[var(--color-text-muted)] italic">Gathering context...</p>
-              )}
-            </div>
-
-            {/* Structured Items */}
-            <div className="bg-[var(--color-bg)] rounded-lg p-4 border border-[var(--color-border)]">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-500 mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Established Facts & Agreements
-              </h3>
-              {liveMediationState.structuredItems.length > 0 ? (
-                <ul className="space-y-3">
-                  {liveMediationState.structuredItems.map((item, idx) => (
-                    <motion.li 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      key={idx} 
-                      className="bg-[var(--color-surface)] p-3 rounded border border-[var(--color-border)]"
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-sm font-semibold text-white">{item.topic}</span>
-                        <span className="text-xs px-2 py-0.5 bg-[var(--color-surface-hover)] rounded text-[var(--color-text-muted)]">{item.actor}</span>
-                      </div>
-                      <p className="text-xs text-[var(--color-text-muted)]">{item.summary}</p>
-                    </motion.li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-[var(--color-text-muted)] italic">Awaiting structured input...</p>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
-        
-        {/* Left Column: Input & Transcript */}
-        <div className="flex flex-col gap-6 overflow-hidden">
-          <div className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-4 flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              Phase 1: Context & Live Transcript
-            </h2>
-            <textarea
-              value={activeCase?.transcript}
-              onChange={(e) => updateActiveCase({ transcript: e.target.value })}
-              placeholder="Enter initial context here, or start the Live Session to let Concordia gather information..."
-              className="flex-1 bg-transparent border-none resize-none focus:ring-0 text-sm leading-relaxed text-white placeholder-[var(--color-text-muted)]"
-            />
-            <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex justify-end">
-              <button 
-                onClick={handleSimulateExtraction}
-                disabled={!activeCase?.transcript || status === 'ANALYZING'}
-                className="bg-[var(--color-surface-hover)] hover:bg-[#2a2a2a] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                <Network className="w-4 h-4" />
-                Phase 2: Structure Resolution Path
-              </button>
-            </div>
-          </div>
-
-          {/* Pathways & Grounding */}
-          <div className="h-1/3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col overflow-hidden">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-4 flex items-center gap-2">
-              <Lightbulb className="w-4 h-4" />
-              Phase 2: Resolution Pathways & Intelligence
-            </h2>
-            <div className="flex-1 overflow-y-auto text-sm text-[var(--color-text-muted)] leading-relaxed pr-2 space-y-6">
-              {pathways ? (
-                <div className="space-y-6">
-                  {pathways.commonGround && pathways.commonGround.length > 0 && (
-                    <div>
-                      <h3 className="text-emerald-400 font-semibold mb-2">Common Ground</h3>
-                      <ul className="list-disc pl-4 space-y-1 text-white">
-                        {pathways.commonGround.map((item: string, i: number) => <li key={i}>{item}</li>)}
-                      </ul>
-                    </div>
+      {/* ─── LIVE PHASE PROGRESS BAR ─── */}
+      {(isRecording || liveMediationState) && (
+        <div className="px-6 py-3 bg-[var(--color-surface)] border-b border-[var(--color-border)] shrink-0">
+          <div className="flex items-center gap-1">
+            {PHASES.map((phase, idx) => (
+              <div key={phase} className="flex items-center flex-1">
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all ${
+                    idx === currentPhaseIdx
+                      ? "bg-[var(--color-accent)] text-white shadow-md shadow-[var(--color-accent)]/30"
+                      : idx < currentPhaseIdx
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        : "bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)]"
+                  }`}
+                >
+                  {idx < currentPhaseIdx ? (
+                    <CheckCircle2 className="w-3 h-3" />
+                  ) : idx === currentPhaseIdx ? (
+                    <Activity className="w-3 h-3 animate-pulse" />
+                  ) : (
+                    <Circle className="w-3 h-3" />
                   )}
-                  {pathways.criticalQuestions && pathways.criticalQuestions.length > 0 && (
-                    <div>
-                      <h3 className="text-amber-400 font-semibold mb-2">Critical Questions to Ask</h3>
-                      <ul className="list-disc pl-4 space-y-1 text-white">
-                        {pathways.criticalQuestions.map((item: string, i: number) => <li key={i}>{item}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {pathways.pathways && pathways.pathways.length > 0 && (
-                    <div>
-                      <h3 className="text-blue-400 font-semibold mb-2">Suggested Pathways</h3>
-                      <ul className="list-disc pl-4 space-y-1 text-white">
-                        {pathways.pathways.map((item: string, i: number) => <li key={i}>{item}</li>)}
-                      </ul>
-                    </div>
-                  )}
+                  {phase}
                 </div>
-              ) : research ? (
-                <div className="space-y-4">
-                  <p className="text-white">{research.text}</p>
-                  {research.chunks && research.chunks.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
-                      <h4 className="text-xs font-semibold uppercase mb-2">Sources</h4>
-                      <ul className="space-y-1">
-                        {research.chunks.map((chunk: any, idx: number) => (
-                          <li key={idx} className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer truncate">
-                            {chunk.web?.title || chunk.web?.uri}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center font-mono opacity-50">
-                  Awaiting analysis...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Interactive Ontology Graph */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-2">
-              <Database className="w-4 h-4" />
-              Case Structure
-            </h2>
-            
-            {/* Health Check Indicator */}
-            <div className="flex items-center gap-3 bg-[var(--color-bg)] border border-[var(--color-border)] px-3 py-1.5 rounded-full">
-              <div className="text-xs font-mono text-[var(--color-text-muted)]">Health Check</div>
-              <div className="flex gap-1">
-                {PRIMITIVE_TYPES.map(type => (
-                  <div key={type} title={type} className="flex items-center justify-center">
-                    {presentTypes.has(type) ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    ) : (
-                      <Circle className="w-3.5 h-3.5 text-[var(--color-border)]" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="text-xs font-mono font-bold text-[var(--color-accent)]">{healthScore}%</div>
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-            {activeCase?.actors.map(actor => (
-              <div key={actor.id} className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex gap-2 flex-1 mr-4">
-                    <input 
-                      value={actor.name} 
-                      onChange={e => updateActor(actor.id, { name: e.target.value })}
-                      className="bg-transparent font-semibold text-white focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 w-1/3"
-                      placeholder="Actor Name"
-                    />
-                    <input 
-                      value={actor.role} 
-                      onChange={e => updateActor(actor.id, { role: e.target.value })}
-                      className="bg-transparent text-sm text-[var(--color-text-muted)] focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 flex-1"
-                      placeholder="Actor Role / Stance"
-                    />
-                  </div>
-                  <button onClick={() => deleteActor(actor.id)} className="text-[var(--color-text-muted)] hover:text-[var(--color-danger)] p-1 rounded transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <div className="space-y-2 pl-4 border-l-2 border-[var(--color-surface-hover)]">
-                  {activeCase.primitives.filter(p => p.actorId === actor.id).map(prim => (
-                    <div key={prim.id} className="flex items-start gap-2 group">
-                      <select 
-                        value={prim.type}
-                        onChange={e => updatePrimitive(prim.id, { type: e.target.value as PrimitiveType })}
-                        className="bg-[var(--color-surface)] text-xs font-mono p-1 rounded border border-[var(--color-border)] text-[var(--color-accent)] focus:outline-none cursor-pointer"
-                      >
-                        {PRIMITIVE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <input 
-                        value={prim.description}
-                        onChange={e => updatePrimitive(prim.id, { description: e.target.value })}
-                        className="bg-transparent text-sm flex-1 focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 text-white"
-                        placeholder="Description..."
-                      />
-                      <button onClick={() => deletePrimitive(prim.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] p-1 transition-opacity">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                  <button 
-                    onClick={() => addPrimitive(actor.id)}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-white flex items-center gap-1 mt-3 py-1 px-2 rounded hover:bg-[var(--color-surface-hover)] transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Add Primitive
-                  </button>
-                </div>
+                {idx < PHASES.length - 1 && (
+                  <div
+                    className={`flex-1 h-px mx-1 ${
+                      idx < currentPhaseIdx
+                        ? "bg-emerald-500/30"
+                        : "bg-[var(--color-border)]"
+                    }`}
+                  />
+                )}
               </div>
             ))}
-            
-            <button 
-              onClick={addActor}
-              className="w-full py-4 border border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] rounded-lg text-sm text-[var(--color-text-muted)] hover:text-white flex items-center justify-center gap-2 transition-colors"
-            >
-              <UserPlus className="w-4 h-4" /> Add Actor
-            </button>
           </div>
         </div>
+      )}
 
+      {/* ─── LIVE MEDIATOR ACTION BANNER ─── */}
+      <AnimatePresence>
+        {isRecording && liveMediationState && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="px-6 shrink-0"
+          >
+            <div className="mt-3 p-3 bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-lg flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center shrink-0">
+                <Brain className="w-4 h-4 text-[var(--color-accent)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-accent)] mb-0.5">
+                  Mediator Focus
+                </div>
+                <p className="text-sm text-white truncate">
+                  {liveMediationState.currentAction}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <MessageCircle className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Addressing:{" "}
+                </span>
+                <span className="text-xs font-bold text-white">
+                  {liveMediationState.targetActor}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MAIN CONTENT AREA ─── */}
+      <div className="flex-1 flex overflow-hidden p-4 gap-4">
+        {/* ─── LEFT: Party Profiles ─── */}
+        <div className="w-72 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
+          <PartyCard
+            name={activeCase?.partyAName || "Party A"}
+            profile={liveMediationState?.partyProfiles?.partyA || null}
+            side="A"
+          />
+          <PartyCard
+            name={activeCase?.partyBName || "Party B"}
+            profile={liveMediationState?.partyProfiles?.partyB || null}
+            side="B"
+          />
+
+          {/* Common Ground */}
+          {liveMediationState &&
+            liveMediationState.commonGround.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-[var(--color-surface)] border border-emerald-500/20 rounded-xl p-4"
+              >
+                <h3 className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Common Ground
+                </h3>
+                <ul className="space-y-1.5">
+                  {liveMediationState.commonGround.map((item, i) => (
+                    <li
+                      key={i}
+                      className="text-[11px] text-emerald-100 flex items-start gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+
+          {/* Tension Points */}
+          {liveMediationState &&
+            liveMediationState.tensionPoints.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-[var(--color-surface)] border border-red-500/20 rounded-xl p-4"
+              >
+                <h3 className="text-[10px] font-mono uppercase tracking-wider text-red-400 mb-2 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5" /> Tension Points
+                </h3>
+                <ul className="space-y-1.5">
+                  {liveMediationState.tensionPoints.map((item, i) => (
+                    <li
+                      key={i}
+                      className="text-[11px] text-red-100 flex items-start gap-1.5"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-red-500 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+
+          {/* Missing Items */}
+          {liveMediationState &&
+            liveMediationState.missingItems.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-[var(--color-surface)] border border-amber-500/20 rounded-xl p-4"
+              >
+                <h3 className="text-[10px] font-mono uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5" /> Still Needed
+                </h3>
+                <ul className="space-y-1.5">
+                  {liveMediationState.missingItems.map((item, i) => (
+                    <li
+                      key={i}
+                      className="text-[11px] text-amber-100 flex items-start gap-1.5"
+                    >
+                      <Circle className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+        </div>
+
+        {/* ─── CENTER: Tabbed Content ─── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex gap-1 mb-3 shrink-0">
+            {(
+              [
+                {
+                  id: "transcript" as const,
+                  label: "Live Transcript",
+                  icon: FileText,
+                },
+                {
+                  id: "structure" as const,
+                  label: "Case Structure",
+                  icon: Database,
+                },
+                {
+                  id: "pathways" as const,
+                  label: "Resolution Pathways",
+                  icon: Lightbulb,
+                },
+              ] as const
+            ).map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === tab.id
+                      ? "bg-[var(--color-accent)] text-white shadow-md shadow-[var(--color-accent)]/20"
+                      : "bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-white border border-[var(--color-border)]"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── TRANSCRIPT TAB ── */}
+          {activeTab === "transcript" && (
+            <div className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col overflow-hidden">
+              <textarea
+                value={activeCase?.transcript}
+                onChange={(e) =>
+                  updateActiveCase({ transcript: e.target.value })
+                }
+                placeholder={`Enter initial context here, or start the Live Session to begin mediation between ${activeCase?.partyAName || "Party A"} and ${activeCase?.partyBName || "Party B"}...`}
+                className="flex-1 bg-transparent border-none resize-none focus:ring-0 text-sm leading-relaxed text-white placeholder-[var(--color-text-muted)] font-mono"
+              />
+              <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex justify-end">
+                <button
+                  onClick={handleSimulateExtraction}
+                  disabled={
+                    !activeCase?.transcript || status === "ANALYZING"
+                  }
+                  className="bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 flex items-center gap-2 shadow-md shadow-[var(--color-accent)]/20"
+                >
+                  <Target className="w-4 h-4" />
+                  Analyze & Find Pathways
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STRUCTURE TAB ── */}
+          {activeTab === "structure" && (
+            <div className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3 bg-[var(--color-bg)] border border-[var(--color-border)] px-3 py-1.5 rounded-full">
+                  <div className="text-xs font-mono text-[var(--color-text-muted)]">
+                    Ontology Health
+                  </div>
+                  <div className="flex gap-1">
+                    {PRIMITIVE_TYPES.map((type) => (
+                      <div
+                        key={type}
+                        title={type}
+                        className="flex items-center justify-center"
+                      >
+                        {presentTypes.has(type) ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : (
+                          <Circle className="w-3.5 h-3.5 text-[var(--color-border)]" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs font-mono font-bold text-[var(--color-accent)]">
+                    {healthScore}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                {activeCase?.actors.map((actor) => (
+                  <div
+                    key={actor.id}
+                    className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex gap-2 flex-1 mr-4">
+                        <input
+                          value={actor.name}
+                          onChange={(e) =>
+                            updateActor(actor.id, {
+                              name: e.target.value,
+                            })
+                          }
+                          className="bg-transparent font-semibold text-white focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 w-1/3"
+                          placeholder="Name"
+                        />
+                        <input
+                          value={actor.role}
+                          onChange={(e) =>
+                            updateActor(actor.id, {
+                              role: e.target.value,
+                            })
+                          }
+                          className="bg-transparent text-sm text-[var(--color-text-muted)] focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 flex-1"
+                          placeholder="Role / Stance"
+                        />
+                      </div>
+                      <button
+                        onClick={() => deleteActor(actor.id)}
+                        className="text-[var(--color-text-muted)] hover:text-[var(--color-danger)] p-1 rounded transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 pl-4 border-l-2 border-[var(--color-surface-hover)]">
+                      {activeCase.primitives
+                        .filter((p) => p.actorId === actor.id)
+                        .map((prim) => (
+                          <div
+                            key={prim.id}
+                            className="flex items-start gap-2 group"
+                          >
+                            <select
+                              value={prim.type}
+                              onChange={(e) =>
+                                updatePrimitive(prim.id, {
+                                  type: e.target.value as PrimitiveType,
+                                })
+                              }
+                              className="bg-[var(--color-surface)] text-xs font-mono p-1 rounded border border-[var(--color-border)] text-[var(--color-accent)] focus:outline-none cursor-pointer"
+                            >
+                              {PRIMITIVE_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              value={prim.description}
+                              onChange={(e) =>
+                                updatePrimitive(prim.id, {
+                                  description: e.target.value,
+                                })
+                              }
+                              className="bg-transparent text-sm flex-1 focus:outline-none border-b border-transparent focus:border-[var(--color-accent)] px-1 text-white"
+                              placeholder="Description..."
+                            />
+                            <button
+                              onClick={() => deletePrimitive(prim.id)}
+                              className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] p-1 transition-opacity"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      <button
+                        onClick={() => addPrimitive(actor.id)}
+                        className="text-xs text-[var(--color-text-muted)] hover:text-white flex items-center gap-1 mt-3 py-1 px-2 rounded hover:bg-[var(--color-surface-hover)] transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Add Primitive
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={addActor}
+                  className="w-full py-4 border border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] rounded-lg text-sm text-[var(--color-text-muted)] hover:text-white flex items-center justify-center gap-2 transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" /> Add Actor
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PATHWAYS TAB ── */}
+          {activeTab === "pathways" && (
+            <div className="flex-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+                {pathways ? (
+                  <div className="space-y-8">
+                    {pathways.commonGround &&
+                      pathways.commonGround.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                        >
+                          <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            <CheckCircle2 className="w-4 h-4" /> Common Ground
+                          </h3>
+                          <div className="space-y-2">
+                            {pathways.commonGround.map(
+                              (item: string, i: number) => (
+                                <div
+                                  key={i}
+                                  className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3 text-sm text-white flex items-start gap-2"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                  {item}
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+
+                    {pathways.criticalQuestions &&
+                      pathways.criticalQuestions.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          <h3 className="text-sm font-bold text-amber-400 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            <Target className="w-4 h-4" /> Critical Questions
+                          </h3>
+                          <div className="space-y-2">
+                            {pathways.criticalQuestions.map(
+                              (item: string, i: number) => (
+                                <div
+                                  key={i}
+                                  className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 text-sm text-white flex items-start gap-2"
+                                >
+                                  <span className="text-amber-500 font-bold shrink-0">
+                                    Q{i + 1}.
+                                  </span>
+                                  {item}
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+
+                    {pathways.pathways && pathways.pathways.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <h3 className="text-sm font-bold text-[var(--color-accent)] mb-3 flex items-center gap-2 uppercase tracking-wider">
+                          <TrendingUp className="w-4 h-4" /> Resolution
+                          Pathways
+                        </h3>
+                        <div className="space-y-2">
+                          {pathways.pathways.map(
+                            (item: string, i: number) => (
+                              <div
+                                key={i}
+                                className="bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-lg p-3 text-sm text-white flex items-start gap-2"
+                              >
+                                <Lightbulb className="w-4 h-4 text-[var(--color-accent)] mt-0.5 shrink-0" />
+                                {item}
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {pathways.psychologicalDynamics &&
+                      pathways.psychologicalDynamics.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                        >
+                          <h3 className="text-sm font-bold text-violet-400 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            <Brain className="w-4 h-4" /> Psychological
+                            Dynamics
+                          </h3>
+                          <div className="space-y-2">
+                            {pathways.psychologicalDynamics.map(
+                              (item: string, i: number) => (
+                                <div
+                                  key={i}
+                                  className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-3 text-sm text-white flex items-start gap-2"
+                                >
+                                  <Activity className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
+                                  {item}
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                  </div>
+                ) : research ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-white leading-relaxed">
+                      {research.text}
+                    </p>
+                    {research.chunks && research.chunks.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+                        <h4 className="text-xs font-semibold uppercase mb-2 text-[var(--color-text-muted)]">
+                          Sources
+                        </h4>
+                        <ul className="space-y-1">
+                          {research.chunks.map(
+                            (chunk: any, idx: number) => (
+                              <li
+                                key={idx}
+                                className="text-xs text-[var(--color-accent)] hover:underline cursor-pointer truncate"
+                              >
+                                {chunk.web?.title || chunk.web?.uri}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-[var(--color-text-muted)]">
+                    <Lightbulb className="w-12 h-12 mb-4 opacity-20" />
+                    <p className="text-sm font-medium">
+                      No analysis yet
+                    </p>
+                    <p className="text-xs mt-1 opacity-60">
+                      Run a live session or enter context and click "Analyze"
+                      to generate resolution pathways
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── RIGHT: Live Structured Items ─── */}
+        {liveMediationState &&
+          liveMediationState.structuredItems.length > 0 && (
+            <div className="w-64 shrink-0 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 overflow-y-auto">
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-3 flex items-center gap-1.5 sticky top-0 bg-[var(--color-surface)] pb-2">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Live Findings
+              </h3>
+              <div className="space-y-2">
+                {liveMediationState.structuredItems.map((item, idx) => (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    key={idx}
+                    className="bg-[var(--color-bg)] p-3 rounded-lg border border-[var(--color-border)]"
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-[11px] font-semibold text-white">
+                        {item.topic}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 bg-[var(--color-surface-hover)] rounded text-[var(--color-text-muted)]">
+                        {item.actor}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+                      {item.summary}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );
